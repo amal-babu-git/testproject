@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import Optional, List
 import logging
 
+
 class Settings(BaseSettings):
     # API Settings
     API_TITLE: str = "API Title"
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
     API_DESCRIPTION: str = "API Description"
     API_PORT: int = 8000
     API_DOMAIN: str = "api.example.com"
-    
+
     # CORS Settings
     CORS_ORIGINS: List[str] = ["*"]
 
@@ -29,12 +30,13 @@ class Settings(BaseSettings):
     # Environment Settings
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    
+
     # Auth Settings
     SECRET_KEY: str = "secret-key-change-in-production"
     JWT_SECRET: str = "jwt-secret-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
     # Email Settings
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
     MAIL_TLS: bool = True
     MAIL_SSL: bool = False
     FRONTEND_URL: str = "http://localhost:3000"
-    
+
     # Logging
     LOG_LEVEL: str = "INFO"
 
@@ -55,7 +57,7 @@ class Settings(BaseSettings):
         if self.DATABASE_URL:
             return self.DATABASE_URL
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-    
+
     def configure_logging(self) -> None:
         """Configure logging based on environment settings."""
         log_level = getattr(logging, self.LOG_LEVEL)
@@ -63,7 +65,7 @@ class Settings(BaseSettings):
             level=log_level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         )
-        
+
         # Set lower log levels for noisy libraries in production
         if not self.DEBUG:
             logging.getLogger("uvicorn").setLevel(logging.WARNING)
@@ -72,6 +74,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
 
 # Create the settings instance
 settings = Settings()

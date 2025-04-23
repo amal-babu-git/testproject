@@ -1,7 +1,8 @@
 from typing import Optional
-from pydantic import EmailStr
+from pydantic import EmailStr, BaseModel
 import uuid
 from fastapi_users import schemas
+
 
 class UserRead(schemas.BaseUser):
     """Schema for user data returned from the API."""
@@ -12,9 +13,10 @@ class UserRead(schemas.BaseUser):
     is_verified: bool
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    
+
     class Config:
         orm_mode = True
+
 
 class UserCreate(schemas.BaseUserCreate):
     """Schema for creating a new user."""
@@ -22,7 +24,7 @@ class UserCreate(schemas.BaseUserCreate):
     password: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -37,9 +39,22 @@ class UserCreate(schemas.BaseUserCreate):
     is_superuser: bool = False
     is_verified: bool = False
 
+
 class UserUpdate(schemas.BaseUserUpdate):
     """Schema for updating an existing user."""
     password: Optional[str] = None
     email: Optional[EmailStr] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+
+
+class TokenResponse(BaseModel):
+    """Schema for returning access and refresh tokens."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema for requesting a new access token using a refresh token."""
+    refresh_token: str
