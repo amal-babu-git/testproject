@@ -31,7 +31,7 @@ async def get_user_db(session: AsyncSession = Depends(get_session)):
 # Bearer transport for JWT
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/jwt/login")
 
-# Custom JWT Strategy with Refresh Token support
+# Custom JWT Strategy with Refresh Token support, the default JWTStrategy is extended to add refresh token functionality
 class JWTRefreshStrategy(JWTStrategy):
     def __init__(
         self,
@@ -63,9 +63,8 @@ class JWTRefreshStrategy(JWTStrategy):
         except jwt.PyJWTError:
             return None
 
+
 # JWT Strategy for authentication - returns the custom strategy
-
-
 def get_jwt_strategy() -> JWTRefreshStrategy:
     return JWTRefreshStrategy(
         secret=settings.JWT_SECRET,
@@ -73,9 +72,8 @@ def get_jwt_strategy() -> JWTRefreshStrategy:
         refresh_lifetime_seconds=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
     )
 
+
 # Custom Authentication Backend to return both tokens
-
-
 class CustomAuthenticationBackend(AuthenticationBackend):
     async def login(self, strategy: JWTRefreshStrategy, user: User) -> TokenResponse:
         """Generate access/refresh tokens and return them."""
