@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     MAIL_FROM_NAME: str = "App Name"
     MAIL_TLS: bool = True
     MAIL_SSL: bool = False
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "http://localhost:4321"
 
     # Logging
     LOG_LEVEL: str = "INFO"

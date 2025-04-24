@@ -55,7 +55,7 @@ async def send_verification_email(
     background_tasks: BackgroundTasks,
 ) -> None:
     """Queue a verification email to be sent in the background."""
-    verification_url = f"{settings.FRONTEND_URL}/verify?token={token}"
+    verification_url = f"{settings.FRONTEND_URL}/auth/verify?token={token}"
     
     # Create a more appealing HTML template
     html_body = f"""
