@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 import logging
 import jwt
+from datetime import timedelta, datetime, timezone
 
 from app.auth.models import User
 from app.auth.email import send_verification_email
@@ -32,6 +33,8 @@ async def get_user_db(session: AsyncSession = Depends(get_session)):
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/jwt/login")
 
 # Custom JWT Strategy with Refresh Token support, the default JWTStrategy is extended to add refresh token functionality
+
+
 class JWTRefreshStrategy(JWTStrategy):
     def __init__(
         self,
@@ -101,6 +104,8 @@ auth_backend = CustomAuthenticationBackend(
 class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = settings.SECRET_KEY
     verification_token_secret = settings.SECRET_KEY
+    # Define verification token lifetime (e.g., 1 day)
+    verification_token_lifetime_seconds: int = 60 * 60 * 24
 
     def __init__(self, user_db, jwt_strategy: JWTRefreshStrategy):
         super().__init__(user_db)
@@ -113,12 +118,29 @@ class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         created_user = await super().create(UserCreate(**user_dict), safe, request)
         return created_user
 
+    async def create_verification_token(self, user: User) -> str:
+        """
+        Generates a verification token for the user, matching fastapi-users internal logic.
+        """
+        data = {
+            "sub": str(user.id),  # Use "sub" for user ID
+            "email": user.email,
+            "aud": self.verification_token_audience  # Use the audience attribute
+        }
+        token = generate_jwt(
+            data,
+            self.verification_token_secret,
+            self.verification_token_lifetime_seconds,
+        )
+        return token
+
     async def on_after_register(
         self, user: User, request: Optional[Request] = None
     ) -> None:
         logger.info(f"User {user.id} has registered.")
         if request:
             try:
+                # This now uses the updated create_verification_token method
                 token = await self.create_verification_token(user)
                 background_tasks = getattr(
                     request.state, "background_tasks", BackgroundTasks())
@@ -139,6 +161,9 @@ class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     async def on_after_request_verify(
         self, user: User, token: str, request: Optional[Request] = None
     ) -> None:
+        # Note: The 'token' passed here is generated internally by fastapi-users
+        # using the logic you requested for create_verification_token.
+        # This method just handles sending the email with the provided token.
         logger.info(
             f"Verification requested for user {user.id}. Token: {token}")
         if not request:
@@ -165,7 +190,7 @@ class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
             return new_access_token
         except (UserNotExists, InvalidID):
             return None
-        
+
 
 # User Manager dependency - returns the extended manager
 async def get_user_manager(user_db=Depends(get_user_db), jwt_strategy: JWTRefreshStrategy = Depends(get_jwt_strategy)):
