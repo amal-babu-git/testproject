@@ -42,3 +42,6 @@ http:
         stsIncludeSubdomains: true
         stsPreload: true
         stsSeconds: 31536000
+    # Add compression middleware
+    compress:
+      compress: {}

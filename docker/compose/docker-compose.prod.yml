@@ -44,16 +44,18 @@ services:
       - "traefik.http.routers.api.rule=Host(`${API_DOMAIN}`)"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls.certresolver=myresolver"
+      # Define CORS middleware directly in labels (as before)
       - "traefik.http.middlewares.api-cors.headers.accesscontrolalloworiginlist=*"
       - "traefik.http.middlewares.api-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
       - "traefik.http.middlewares.api-cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
-      - "traefik.http.routers.api.middlewares=api-cors,secureHeaders"
+      # Apply CORS, secureHeaders (from file), and compress (from file) middlewares
+      - "traefik.http.routers.api.middlewares=api-cors,secureHeaders@file,compress@file"
     environment:
       - ENVIRONMENT=production
       - DEBUG=false
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     command: >
-      bash -c "alembic upgrade head && 
+      bash -c "alembic upgrade head &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       postgres:
