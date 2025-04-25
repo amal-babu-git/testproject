@@ -1,6 +1,8 @@
 from typing import Optional, Any
 from fastapi import BackgroundTasks, Request, Depends, Response
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+# Add OAuth2PasswordRequestForm import
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
@@ -118,6 +120,54 @@ class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         created_user = await super().create(UserCreate(**user_dict), safe, request)
         return created_user
 
+    async def authenticate(
+        self, credentials: OAuth2PasswordRequestForm
+    ) -> Optional[User]:
+        """
+        Authenticate the user based on email and password.
+
+        Overrides the default authenticate method to add an explicit check
+        for the `is_verified` status before allowing login.
+
+        :param credentials: The user credentials (username=email, password).
+        :return: The authenticated user object if credentials are valid and
+                 the user is active and verified. Returns None otherwise.
+        """
+        try:
+            user = await self.get_by_email(credentials.username)
+        except exceptions.UserNotExists:
+            # Run the hasher to mitigate timing attack
+            self.password_helper.hash(credentials.password)
+            logger.debug(f"Login failed: User not found for email {credentials.username}")
+            return None
+
+        verified, updated_password_hash = self.password_helper.verify_and_update(
+            credentials.password, user.hashed_password
+        )
+        if not verified:
+            logger.debug(f"Login failed: Invalid password for user {user.id}")
+            return None
+
+        # Check if user is active
+        if not user.is_active:
+            logger.debug(f"Login failed: User {user.id} is inactive")
+            return None
+
+        if not user.is_verified:
+            logger.debug(f"Login failed: User {user.id} is not verified")
+            # Optionally, you could raise a specific exception here
+            # raise exceptions.UserNotVerified()
+            # Returning None is usually sufficient for login failure
+            return None
+
+        # Update password hash if needed
+        if updated_password_hash is not None:
+            await self.user_db.update(user, {"hashed_password": updated_password_hash})
+            logger.debug(f"Password hash updated for user {user.id}")
+
+        logger.debug(f"User {user.id} authenticated successfully")
+        return user
+
     async def create_verification_token(self, user: User) -> str:
         """
         Generates a verification token for the user, matching fastapi-users internal logic.
@@ -176,6 +226,28 @@ class UserManagerWithRefresh(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
                 request.state, "background_tasks", BackgroundTasks())
             await send_verification_email(user.email, token, background_tasks)
             logger.info(f"Verification email queued for user {user.id}")
+
+    async def on_after_login(
+        self,
+        user: User,
+        request: Optional[Request] = None,
+        response: Optional[Response] = None,
+    ) -> None:
+        """
+        Perform logic after successful user login.
+        This method is called by fastapi-users after successful authentication.
+        """
+        logger.info(f"User {user.id} logged in successfully.")
+        # Add your custom logic here, e.g.:
+        # - Record login time
+        # - Update user status
+        # - Trigger other background tasks
+        # Example:
+        # if request:
+        #     logger.info(f"Login request from IP: {request.client.host}")
+        # if response:
+        #     # You could potentially modify the response headers here, but be careful
+        #     pass
 
     async def refresh_access_token(self, refresh_token: str) -> Optional[str]:
         token_data = await self.jwt_strategy.read_refresh_token(refresh_token)
